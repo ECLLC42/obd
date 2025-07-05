@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OBD Diagnostic Chat</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="container glass">
+      <h1>OBD Diagnostic Assistant</h1>
+      <div id="chat" class="chat-window"></div>
+      <form id="form">
+        <textarea
+          id="messageInput"
+          placeholder="Paste your raw OBD data here ..."
+          rows="4"
+          required
+        ></textarea>
+        <button type="submit">Send</button>
+      </form>
+    </div>
+
+    <script>
+      const chat = document.getElementById("chat");
+      const form = document.getElementById("form");
+      const input = document.getElementById("messageInput");
+
+      const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+      const ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws`);
+
+      ws.onmessage = (event) => {
+        addMessage(event.data, "assistant");
+      };
+
+      ws.onclose = () => {
+        addSystemMessage("Connection closed. Please refresh the page.");
+      };
+
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const text = input.value.trim();
+        if (!text) return;
+        addMessage(text, "user");
+        ws.send(text);
+        input.value = "";
+      });
+
+      function addMessage(text, sender) {
+        const msg = document.createElement("div");
+        msg.className = `message ${sender}`;
+        msg.textContent = text;
+        chat.appendChild(msg);
+        chat.scrollTop = chat.scrollHeight;
+      }
+
+      function addSystemMessage(text) {
+        const msg = document.createElement("div");
+        msg.className = "system-message";
+        msg.textContent = text;
+        chat.appendChild(msg);
+        chat.scrollTop = chat.scrollHeight;
+      }
+    </script>
+  </body>
+</html>
