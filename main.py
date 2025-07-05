@@ -4,10 +4,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import os
 import openai
+from openai import AsyncOpenAI
 from typing import List
 
-# Configure your OpenAI API key via environment variable for security
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Initialize Async OpenAI client once
+openai.api_key = os.getenv("OPENAI_API_KEY")  # still set for compatibility
+client = AsyncOpenAI(api_key=openai.api_key)
 
 app = FastAPI(title="OBD Diagnostic Chat")
 
@@ -47,25 +49,30 @@ manager = ConnectionManager()
 async def websocket_endpoint(websocket: WebSocket):
     """Websocket endpoint that streams a back-and-forth chat with OpenAI."""
     await manager.connect(websocket)
-    conversation: List[dict] = []
+    last_response_id: str | None = None
     try:
         while True:
             user_input = await websocket.receive_text()
-            # Append user message to history
-            conversation.append({"role": "user", "content": user_input})
-
-            # Call OpenAI chat completion
+            # Call OpenAI Responses API
             try:
-                response = await openai.ChatCompletion.acreate(
-                    model="o3",
-                    messages=conversation,
-                )
-                assistant_reply = response.choices[0].message.content
+                if last_response_id is None:
+                    response = await client.responses.create(
+                        model="o3",
+                        input=user_input,
+                    )
+                else:
+                    response = await client.responses.create(
+                        model="o3",
+                        input=user_input,
+                        previous_response_id=last_response_id,
+                    )
+
+                assistant_reply = response.output_text
+                last_response_id = response.id  # Track for conversation continuity
             except Exception as e:
                 assistant_reply = f"Error contacting model: {e}"
 
             # Append assistant message to history and send back to client
-            conversation.append({"role": "assistant", "content": assistant_reply})
             await manager.send_personal_message(assistant_reply, websocket)
     except WebSocketDisconnect:
         manager.disconnect(websocket)
