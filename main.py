@@ -67,7 +67,20 @@ async def websocket_endpoint(websocket: WebSocket):
                         previous_response_id=last_response_id,
                     )
 
-                assistant_reply = response.output_text
+                # Extract text from response according to Responses API documentation
+                # response.output is an array of content items
+                # Each message has content array with output_text objects
+                assistant_reply = ""
+                if response.output and len(response.output) > 0:
+                    message_item = response.output[0]  # Get first output item
+                    if hasattr(message_item, 'content') and len(message_item.content) > 0:
+                        for content_item in message_item.content:
+                            if hasattr(content_item, 'type') and content_item.type == 'output_text':
+                                assistant_reply += content_item.text
+                
+                if not assistant_reply:
+                    assistant_reply = "No response generated"
+                
                 last_response_id = response.id  # Track for conversation continuity
             except Exception as e:
                 assistant_reply = f"Error contacting model: {e}"
